@@ -1,0 +1,1167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Attendance System - Admin & Student Portal</title>
+    <!-- Tailwind CSS for modern responsive styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Firebase Compat SDKs (Works perfectly on local file:/// without module CORS errors) -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
+    <style>
+        /* Custom scrollbar to keep layout premium */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #111827;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #374151;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #4b5563;
+        }
+
+        /* Satisfying bouncy modal transition */
+        @keyframes modalScaleUp {
+            from {
+                opacity: 0;
+                transform: scale(0.92);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+        .animate-modal-pop {
+            animation: modalScaleUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        }
+    </style>
+</head>
+<body class="bg-[#0b0f19] text-gray-100 min-h-screen font-sans flex flex-col justify-between">
+
+    <!-- Header Section -->
+    <header class="border-b border-gray-800 bg-[#0f1626]/80 backdrop-blur-md sticky top-0 z-50 px-6 py-4">
+        <div class="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <div class="p-2.5 bg-gradient-to-tr from-emerald-500 to-teal-600 rounded-xl shadow-lg shadow-teal-500/20">
+                    <i class="fa-solid fa-graduation-cap text-2xl text-white"></i>
+                </div>
+                <div>
+                    <h1 class="text-2xl font-bold tracking-wide bg-gradient-to-r from-emerald-400 via-teal-200 to-indigo-400 bg-clip-text text-transparent">
+                        Attendance System
+                    </h1>
+                    <p class="text-xs text-gray-400">Admin & Student Integrated Portal (Firebase Backend)</p>
+                </div>
+            </div>
+            
+            <!-- Live Status Indicator Banner -->
+            <div id="liveStatusBanner" class="flex items-center gap-3 px-4 py-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 transition-all duration-300">
+                <span class="relative flex h-3 w-3">
+                    <span id="liveStatusPing" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                    <span id="liveStatusDot" class="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
+                </span>
+                <span id="liveStatusText" class="text-sm font-semibold tracking-wide">Initializing Mode...</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="flex-grow flex items-center justify-center w-full">
+
+        <!-- 1. ROLE SELECTION SCREEN (Landing Page) -->
+        <section id="roleSelectionScreen" class="max-w-4xl mx-auto px-6 py-12 w-full flex flex-col justify-center items-center transition-all duration-300">
+            <!-- Title Header -->
+            <div class="text-center mb-12">
+                <span class="px-3 py-1 text-xs font-semibold tracking-wider text-teal-400 bg-teal-500/5 border border-teal-500/10 rounded-full uppercase">Entrance Gateway</span>
+                <h2 class="text-3xl font-extrabold text-gray-100 mt-3 tracking-tight">Welcome! Please Select a Portal</h2>
+                <p class="text-sm text-gray-400 mt-2 max-w-md mx-auto">Please choose an option below to submit your attendance or access the administrator class management dashboard.</p>
+            </div>
+
+            <!-- Double Grid Choices -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-3xl">
+                <!-- Student Card Option -->
+                <div onclick="navigateTo('student')" class="group relative bg-[#0f1626] border border-gray-800/80 rounded-2xl p-8 text-center cursor-pointer hover:border-emerald-500/50 hover:shadow-2xl hover:shadow-emerald-500/5 transition-all duration-300">
+                    <div class="absolute inset-0 bg-gradient-to-b from-emerald-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-2xl"></div>
+                    <div class="w-16 h-16 mx-auto mb-6 bg-emerald-500/10 text-emerald-400 rounded-2xl flex items-center justify-center text-3xl group-hover:scale-110 transition-transform duration-300">
+                        👨‍🎓
+                    </div>
+                    <h3 class="text-xl font-bold text-gray-100 mb-2">Student Portal</h3>
+                    <p class="text-xs text-gray-400 leading-relaxed">Select from active courses and submit your real-time attendance details instantly.</p>
+                    <span class="inline-flex items-center gap-1.5 mt-6 text-xs text-emerald-400 font-semibold group-hover:underline">
+                        Enter Portal <i class="fa-solid fa-arrow-right"></i>
+                    </span>
+                </div>
+
+                <!-- Admin Card Option -->
+                <div onclick="navigateTo('admin')" class="group relative bg-[#0f1626] border border-gray-800/80 rounded-2xl p-8 text-center cursor-pointer hover:border-indigo-500/50 hover:shadow-2xl hover:shadow-indigo-500/5 transition-all duration-300">
+                    <div class="absolute inset-0 bg-gradient-to-b from-indigo-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-2xl"></div>
+                    <div class="w-16 h-16 mx-auto mb-6 bg-indigo-500/10 text-indigo-400 rounded-2xl flex items-center justify-center text-3xl group-hover:scale-110 transition-transform duration-300">
+                        🤵
+                    </div>
+                    <h3 class="text-xl font-bold text-gray-100 mb-2">Admin Portal</h3>
+                    <p class="text-xs text-gray-400 leading-relaxed">Launch multiple classes simultaneously, view live interactive rosters, and export reports.</p>
+                    <span class="inline-flex items-center gap-1.5 mt-6 text-xs text-indigo-400 font-semibold group-hover:underline">
+                        Enter Portal <i class="fa-solid fa-arrow-right"></i>
+                    </span>
+                </div>
+            </div>
+        </section>
+
+        <!-- 2. STUDENT VIEW CONTAINER -->
+        <section id="studentViewWrapper" class="hidden max-w-xl mx-auto w-full px-4 py-8">
+            <!-- Go Back to landing option -->
+            <button onclick="navigateTo('landing')" class="mb-5 inline-flex items-center gap-2 text-xs font-semibold text-gray-400 hover:text-teal-400 transition-all">
+                <i class="fa-solid fa-arrow-left"></i> Back to Role Selection
+            </button>
+
+            <div class="bg-[#0f1626] border border-gray-800/80 rounded-2xl p-6 shadow-xl relative overflow-hidden transition-all duration-300 hover:border-teal-500/30">
+                <div class="absolute top-0 left-0 w-2 h-full bg-gradient-to-b from-teal-500 to-emerald-600"></div>
+                
+                <div class="flex items-center gap-2 mb-6">
+                    <span class="text-2xl">👋</span>
+                    <h2 class="text-xl font-bold text-gray-200">Student Portal</h2>
+                </div>
+
+                <!-- Active Classes Selector / Inactive Banner -->
+                <div class="mb-6">
+                    <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Choose Active Class</label>
+                    <select id="studentClassSelect" onchange="onStudentSelectClass()" class="w-full bg-[#162032] border border-gray-800 rounded-xl px-4 py-3 text-sm text-gray-100 focus:border-teal-500 outline-none cursor-pointer">
+                        <!-- Dynamic active classes loaded here -->
+                    </select>
+                </div>
+
+                <!-- Inactive Banner if no active classes -->
+                <div id="studentFormOverlay" class="bg-gray-900/90 rounded-xl p-6 text-center border border-dashed border-gray-800 mb-6 hidden">
+                    <i class="fa-solid fa-hourglass-start text-4xl text-amber-500/80 mb-3 animate-pulse"></i>
+                    <h3 class="text-base font-semibold text-gray-300">No Active Classes</h3>
+                    <p class="text-xs text-gray-400 mt-1">Please wait for your instructor to launch a live class session.</p>
+                </div>
+
+                <!-- Form Inputs -->
+                <form id="attendanceForm" class="space-y-4 hidden">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Class Date</label>
+                        <div class="relative">
+                            <i class="fa-solid fa-calendar-days absolute left-4 top-3.5 text-teal-500"></i>
+                            <input type="text" id="studentDate" disabled 
+                                class="w-full bg-[#162032] border border-gray-800 rounded-xl pl-11 pr-4 py-3 text-sm text-gray-400 outline-none cursor-not-allowed">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Student Name</label>
+                        <div class="relative">
+                            <i class="fa-solid fa-user absolute left-4 top-3.5 text-gray-500"></i>
+                            <input type="text" id="studentName" required placeholder="E.g. Nahidul Islam"
+                                class="w-full bg-[#162032] border border-gray-800 rounded-xl pl-11 pr-4 py-3 text-sm text-gray-100 focus:border-teal-500/80 focus:ring-1 focus:ring-teal-500/50 outline-none transition-all">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Roll Number</label>
+                        <div class="relative">
+                            <i class="fa-solid fa-id-card absolute left-4 top-3.5 text-gray-500"></i>
+                            <input type="number" id="studentRoll" required placeholder="E.g. 5337"
+                                class="w-full bg-[#162032] border border-gray-800 rounded-xl pl-11 pr-4 py-3 text-sm text-gray-100 focus:border-teal-500/80 focus:ring-1 focus:ring-teal-500/50 outline-none transition-all">
+                        </div>
+                    </div>
+
+                    <button type="submit" id="btnSubmitAttendance"
+                        class="w-full mt-4 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 active:scale-[0.98] text-white py-3.5 px-4 rounded-xl font-semibold shadow-lg shadow-emerald-500/10 hover:shadow-emerald-500/20 transition-all flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-circle-check"></i> Submit Attendance
+                    </button>
+                </form>
+
+                <!-- Receipt of submission to avoid double submits -->
+                <div id="receiptBox" class="hidden mt-4 bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-5 text-center">
+                    <i class="fa-solid fa-circle-check text-4xl text-emerald-400 mb-2"></i>
+                    <h4 class="text-base font-semibold text-emerald-400">Attendance Submitted!</h4>
+                    <p class="text-xs text-gray-400 mt-1">Your data has been successfully registered in the secure class database.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- 3. ADMIN VIEW CONTAINER -->
+        <section id="adminViewWrapper" class="hidden max-w-5xl mx-auto w-full px-4 py-8 flex flex-col gap-6">
+            <!-- Go Back to landing option -->
+            <button onclick="navigateTo('landing')" class="inline-flex items-center gap-2 text-xs font-semibold text-gray-400 hover:text-indigo-400 transition-all self-start">
+                <i class="fa-solid fa-arrow-left"></i> Back to Role Selection
+            </button>
+
+            <!-- Admin Authorization Card -->
+            <div id="adminAuthCard" class="bg-[#0f1626] border border-gray-800 rounded-2xl p-6 shadow-xl relative overflow-hidden transition-all duration-300">
+                <div class="absolute top-0 left-0 w-2 h-full bg-indigo-500"></div>
+                <div class="flex items-center gap-2 mb-6">
+                    <span class="text-2xl">🤵</span>
+                    <h2 class="text-xl font-bold text-gray-200">Admin Portal Log-In</h2>
+                </div>
+
+                <div class="flex flex-col md:flex-row gap-3">
+                    <div class="relative flex-grow">
+                        <i class="fa-solid fa-lock absolute left-4 top-3.5 text-gray-500"></i>
+                        <input type="password" id="adminPassword" placeholder="Enter Admin Password"
+                            class="w-full bg-[#162032] border border-gray-800 rounded-xl pl-11 pr-12 py-3 text-sm text-gray-100 focus:border-indigo-500/80 outline-none transition-all">
+                        <!-- Eye icon to toggle visibility -->
+                        <i id="togglePasswordIcon" class="fa-solid fa-eye absolute right-4 top-3.5 cursor-pointer text-gray-500 hover:text-gray-300" onclick="togglePasswordVisibility()"></i>
+                    </div>
+                    <button id="btnLogin" onclick="loginAdmin()"
+                        class="bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white py-3 px-6 rounded-xl font-semibold text-sm transition-all shadow-md shadow-indigo-600/10">
+                        Access Admin Dashboard
+                    </button>
+                </div>
+            </div>
+
+            <!-- Admin Live Dashboard (Shown after successful login) -->
+            <div id="adminDashboard" class="hidden grid grid-cols-1 lg:grid-cols-12 gap-6 w-full">
+                
+                <!-- Left Hand Controller (Col 5) -->
+                <div class="lg:col-span-5 flex flex-col gap-6">
+                    <!-- Class Launcher Card -->
+                    <div class="bg-[#0f1626] border border-gray-800 rounded-2xl p-6 shadow-xl relative overflow-hidden transition-all duration-300">
+                        <div class="absolute top-0 left-0 w-2 h-full bg-gradient-to-b from-indigo-500 to-purple-600"></div>
+                        <div class="flex items-center justify-between mb-6">
+                            <div class="flex items-center gap-2">
+                                <span class="text-xl">🛠️</span>
+                                <h2 class="text-lg font-bold text-gray-200">Launch Class</h2>
+                            </div>
+                            <button onclick="logoutAdmin()" class="text-xs text-rose-400 hover:underline">
+                                <i class="fa-solid fa-right-from-bracket"></i> Logout
+                            </button>
+                        </div>
+
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Subject Selection</label>
+                                <select id="adminSubject" class="w-full bg-[#162032] border border-gray-800 rounded-xl px-4 py-3 text-sm text-gray-100 focus:border-indigo-500 outline-none cursor-pointer">
+                                    <option value="Introduction to Programming">Introduction to Programming</option>
+                                    <option value="Professional Communication">Professional Communication</option>
+                                    <option value="Bangladesh Studies">Bangladesh Studies</option>
+                                    <option value="Physics I">Physics I</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Set Class Date</label>
+                                <input type="date" id="adminDate" class="w-full bg-[#162032] border border-gray-800 rounded-xl px-4 py-3 text-sm text-gray-100 focus:border-indigo-500 outline-none">
+                            </div>
+                            <button id="btnStartClass" onclick="startClass()"
+                                class="w-full mt-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-semibold py-3 px-4 rounded-xl text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer">
+                                <i class="fa-solid fa-play"></i> Start Selected Class
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Live Running Classes Tracker -->
+                    <div class="bg-[#0f1626] border border-gray-800 rounded-2xl p-6 shadow-xl relative overflow-hidden">
+                        <h3 class="text-base font-bold text-gray-200 mb-4">Active Classes Status</h3>
+                        <div id="adminActiveClassesList" class="space-y-3 max-h-[300px] overflow-y-auto pr-1">
+                            <!-- Dynamic running classes loaded from db with individual Stop button -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Hand Table & Data Records (Col 7) -->
+                <div class="lg:col-span-7 flex flex-col gap-6">
+                    <!-- Live Feed & Export Area -->
+                    <div class="bg-[#0f1626] border border-gray-800 rounded-2xl p-6 shadow-xl relative">
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                            <div>
+                                <h3 class="text-lg font-bold text-gray-200">Live Attendance List</h3>
+                                <p class="text-xs text-gray-400">Real-time attendance roster pulled from Firestore</p>
+                            </div>
+                            <div class="flex gap-2">
+                                <button onclick="exportToCSV()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-xl text-xs transition-all flex items-center gap-1.5 shadow-md">
+                                    <i class="fa-solid fa-file-csv text-base"></i> Export CSV
+                                </button>
+                                <button onclick="confirmClearAll()" class="bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 text-rose-400 font-semibold py-2 px-3 rounded-xl text-xs transition-all flex items-center gap-1">
+                                    <i class="fa-solid fa-trash-can"></i> Clear All
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Search and Multi-Filters (Subject + Date) -->
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4 bg-[#111827] p-3 rounded-xl border border-gray-800">
+                            <!-- Search filter -->
+                            <div class="relative">
+                                <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-gray-500 text-xs"></i>
+                                <input type="text" id="attendanceSearch" oninput="filterTable()" placeholder="Search roll/name..."
+                                    class="w-full bg-[#162032] border border-gray-800 rounded-lg pl-9 pr-3 py-1.5 text-xs text-gray-100 focus:border-indigo-500 outline-none">
+                            </div>
+                            <!-- Subject filter dropdown -->
+                            <div>
+                                <select id="adminSubjectFilter" onchange="filterTable()" class="w-full bg-[#162032] border border-gray-800 rounded-lg px-2 py-1.5 text-xs text-gray-100 focus:border-indigo-500 outline-none cursor-pointer">
+                                    <option value="ALL">All Subjects</option>
+                                    <option value="Introduction to Programming">Introduction to Programming</option>
+                                    <option value="Professional Communication">Professional Communication</option>
+                                    <option value="Bangladesh Studies">Bangladesh Studies</option>
+                                    <option value="Physics I">Physics I</option>
+                                </select>
+                            </div>
+                            <!-- Dynamic Date filter dropdown -->
+                            <div>
+                                <select id="adminDateFilter" onchange="filterTable()" class="w-full bg-[#162032] border border-gray-800 rounded-lg px-2 py-1.5 text-xs text-gray-100 focus:border-indigo-500 outline-none cursor-pointer">
+                                    <option value="ALL">All Dates</option>
+                                    <!-- Options populated dynamically from actual attendance entries -->
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="flex justify-between items-center mb-3">
+                            <div class="text-xs text-indigo-400 font-semibold bg-indigo-500/5 border border-indigo-500/10 py-1.5 px-3 rounded-lg">
+                                Realtime Registered: <span id="studentCount" class="text-white">0</span>
+                            </div>
+                        </div>
+
+                        <!-- Table Wrapper -->
+                        <div class="overflow-x-auto rounded-xl border border-gray-800/60 max-h-[350px]">
+                            <table class="w-full text-left text-sm text-gray-300">
+                                <thead class="text-xs uppercase bg-[#141b2b] text-gray-400 border-b border-gray-800 sticky top-0 z-10">
+                                    <tr>
+                                        <th scope="col" class="px-3 py-3">Roll</th>
+                                        <th scope="col" class="px-3 py-3">Name</th>
+                                        <th scope="col" class="px-3 py-3">Subject</th>
+                                        <th scope="col" class="px-3 py-3">Date</th>
+                                        <th scope="col" class="px-3 py-3">Time</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="attendanceTableBody" class="divide-y divide-gray-800 bg-[#0f1626]/40">
+                                    <!-- Dynamic records loaded from Firestore -->
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Empty State for table -->
+                        <div id="emptyTableState" class="text-center py-12 text-gray-500">
+                            <i class="fa-regular fa-folder-open text-4xl mb-3 opacity-60"></i>
+                            <p class="text-sm">No attendance submissions yet</p>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Custom Modal Notification Box -->
+    <div id="customModal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div class="bg-[#111827] border border-gray-800 rounded-2xl max-w-sm w-full p-6 text-center shadow-2xl relative animate-modal-pop">
+            <div id="modalIcon" class="w-16 h-16 rounded-full mx-auto flex items-center justify-center text-3xl mb-4"></div>
+            <h3 id="modalTitle" class="text-lg font-bold text-gray-100">Notification</h3>
+            <p id="modalBody" class="text-sm text-gray-400 mt-2 leading-relaxed whitespace-pre-line">Details of the notification</p>
+            
+            <!-- Dynamic Receipt details container inserted automatically inside JS -->
+            <div id="modalDetailsContainer" class="mt-4 p-3 bg-gray-900/60 rounded-xl border border-gray-800/80 text-left text-xs space-y-2 hidden"></div>
+
+            <button onclick="closeModal()" class="mt-6 w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2.5 px-4 rounded-xl text-sm transition-all shadow-lg shadow-indigo-600/10">
+                Dismiss
+            </button>
+        </div>
+    </div>
+
+    <!-- Custom Confirm Dialog Box (Instead of native browser confirm window) -->
+    <div id="confirmModal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div class="bg-[#111827] border border-gray-800 rounded-2xl max-w-sm w-full p-6 text-center shadow-2xl relative">
+            <div class="w-12 h-12 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20 mx-auto flex items-center justify-center text-2xl mb-4">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+            </div>
+            <h3 class="text-lg font-bold text-gray-100">Are you absolute sure?</h3>
+            <p class="text-sm text-gray-400 mt-2 leading-relaxed">This action will delete all student attendance records from the database permanently. This cannot be undone.</p>
+            <div class="grid grid-cols-2 gap-3 mt-6">
+                <button onclick="closeConfirmModal()" class="bg-gray-800 hover:bg-gray-700 text-white font-semibold py-2.5 rounded-xl text-sm transition-all">
+                    Cancel
+                </button>
+                <button onclick="executeClearAll()" class="bg-rose-600 hover:bg-rose-500 text-white font-semibold py-2.5 rounded-xl text-sm transition-all shadow-lg shadow-rose-600/10">
+                    Yes, Delete All
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer Area -->
+    <footer class="border-t border-gray-800/80 bg-[#070a12] py-4 text-center text-xs text-gray-500">
+        <div class="max-w-7xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-2">
+            <p>&copy; 2026 Live Attendance Tracker. Realtime Firebase Integrated Gateway.</p>
+            <p class="flex items-center gap-1">Status: Syncing <span class="w-2 h-2 rounded-full bg-emerald-500 inline-block animate-pulse"></span></p>
+        </div>
+    </footer>
+
+    <!-- Firebase SDK Setup & Core Application Logic -->
+    <script>
+        // Firebase Config credentials fallback mapping
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'online-attendance-4db73';
+        
+        let firebaseConfig;
+        if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+            firebaseConfig = JSON.parse(__firebase_config);
+        } else {
+            firebaseConfig = {
+                apiKey: "AIzaSyBNdLrDWlQ-RVtgu9ux6U_ej1pcBs4fPnY",
+                authDomain: "online-attendance-4db73.firebaseapp.com",
+                databaseURL: "https://online-attendance-4db73-default-rtdb.asia-southeast1.firebasedatabase.app",
+                projectId: "online-attendance-4db73",
+                storageBucket: "online-attendance-4db73.firebasestorage.app",
+                messagingSenderId: "696929465911",
+                appId: "1:696929465911:web:704d4e97bdadc9369171b2",
+                measurementId: "G-NZZF25P3D5"
+            };
+        }
+
+        // Initialize connection status trackers
+        let db = null;
+        let auth = null;
+        let isFirebaseConnected = false;
+
+        // Strict Path Definitions for Collections (RULE 1)
+        let classesColRef = null;
+        let attendanceColRef = null;
+
+        // Core App State Management
+        let appState = {
+            user: null,
+            isAdminLoggedIn: false,
+            currentView: 'landing',
+            activeClasses: [],     // Holds array of {id, subject, date, timestamp}
+            attendanceList: []    // Holds array of {id, roll, name, subject, date, status, time, timestamp}
+        };
+
+        // UI Helpers for Dynamic Status Box
+        function setStatusIndicator(mode, msg) {
+            const banner = document.getElementById('liveStatusBanner');
+            const ping = document.getElementById('liveStatusPing');
+            const dot = document.getElementById('liveStatusDot');
+            const text = document.getElementById('liveStatusText');
+
+            if (mode === 'cloud') {
+                banner.className = "flex items-center gap-3 px-4 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 transition-all duration-300";
+                ping.className = "animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75";
+                dot.className = "relative inline-flex rounded-full h-3 w-3 bg-emerald-500";
+                text.innerText = msg;
+            } else if (mode === 'local') {
+                banner.className = "flex items-center gap-3 px-4 py-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 transition-all duration-300";
+                ping.className = "animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75";
+                dot.className = "relative inline-flex rounded-full h-3 w-3 bg-amber-500";
+                text.innerText = msg;
+            } else {
+                banner.className = "flex items-center gap-3 px-4 py-2 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 transition-all duration-300";
+                ping.className = "animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75";
+                dot.className = "relative inline-flex rounded-full h-3 w-3 bg-rose-500";
+                text.innerText = msg;
+            }
+        }
+
+        // Initialize Secure Session
+        window.addEventListener('load', () => {
+            // Preset date field
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('adminDate').value = today;
+
+            // Load last view choices from Local Cache to improve UX
+            const localView = localStorage.getItem('attendance_current_view');
+            const localAdminLogin = localStorage.getItem('attendance_admin_logged_in');
+
+            if (localView) appState.currentView = localView;
+            if (localAdminLogin === 'true') appState.isAdminLoggedIn = true;
+
+            // Try loading Firebase library
+            if (typeof firebase !== 'undefined') {
+                try {
+                    // Initialize Firebase Compat setup
+                    const firebaseApp = firebase.initializeApp(firebaseConfig);
+                    auth = firebase.auth();
+                    db = firebase.firestore();
+                    isFirebaseConnected = true;
+
+                    // Set collection references securely (RULE 1)
+                    classesColRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('classes');
+                    attendanceColRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('attendance');
+
+                    // Authenticate session (RULE 3)
+                    auth.onAuthStateChanged((user) => {
+                        if (user) {
+                            appState.user = user;
+                            setStatusIndicator('cloud', 'Live Connected to Cloud');
+                            setupFirebaseListeners();
+                        } else {
+                            signInSecurely();
+                        }
+                    });
+
+                } catch (err) {
+                    console.error("Firebase config boot crash:", err);
+                    initializeLocalOfflineMode("Cloud Blocked: Local Sandbox Active");
+                }
+            } else {
+                initializeLocalOfflineMode("Offline Fallback Mode Active");
+            }
+        });
+
+        // Offline Fallback Setup
+        function initializeLocalOfflineMode(reason) {
+            isFirebaseConnected = false;
+            setStatusIndicator('local', reason);
+            
+            // Load state data locally from browser LocalStorage
+            loadLocalCache();
+            updateUI();
+            renderAttendanceTable();
+        }
+
+        // Authenticate Session wrapper
+        function signInSecurely() {
+            if (!isFirebaseConnected) return;
+            setStatusIndicator('local', 'Authenticating Cloud...');
+            
+            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                auth.signInWithCustomToken(__initial_auth_token).catch(err => {
+                    console.warn("Custom token failed, trying anonymous:", err);
+                    auth.signInAnonymously().catch(anonErr => handleAuthError(anonErr));
+                });
+            } else {
+                auth.signInAnonymously().catch(err => handleAuthError(err));
+            }
+        }
+
+        // Custom function to handle connection errors and guide the user
+        function handleAuthError(error) {
+            console.error("Firebase Authentication failed:", error);
+            initializeLocalOfflineMode("Permission Denied: Local Mode");
+
+            // Show a helpful pop-up modal with configuration instructions
+            triggerModal(
+                "Action Required",
+                "Firebase requires you to enable 'Anonymous Authentication'.\n\nTo fix this:\n1. Go to Firebase Console\n2. Navigate to Authentication -> Sign-in method\n3. Enable 'Anonymous' and save.\n\nUntil then, the app will continue to run safely in Offline Local Storage Mode.",
+                "error"
+            );
+        }
+
+        // Set up Real-time database synchronizers
+        function setupFirebaseListeners() {
+            if (!isFirebaseConnected || !appState.user) return;
+
+            // 1. Dynamic active classes listener
+            classesColRef.onSnapshot((snapshot) => {
+                const classes = [];
+                snapshot.forEach(doc => {
+                    classes.push({ id: doc.id, ...doc.data() });
+                });
+                appState.activeClasses = classes;
+                syncActiveClassesUI();
+            }, (error) => {
+                console.warn("Firestore classes blocked:", error);
+                initializeLocalOfflineMode("Rules Restricted: Local Sandbox Active");
+            });
+
+            // 2. Real-time attendances listener (RULE 2 compliance - local memory sorting, filter & de-duplication)
+            attendanceColRef.onSnapshot((snapshot) => {
+                const logs = [];
+                snapshot.forEach(doc => {
+                    logs.push({ id: doc.id, ...doc.data() });
+                });
+                // Sort logs by time desc locally
+                logs.sort((a, b) => b.timestamp - a.timestamp);
+
+                // De-duplicate logs locally by roll + subject + date to guarantee no UI duplicates
+                const uniqueLogs = [];
+                const seen = new Set();
+                logs.forEach(log => {
+                    const key = `${log.roll.trim()}-${log.subject.trim()}-${log.date.trim()}`;
+                    if (!seen.has(key)) {
+                        seen.add(key);
+                        uniqueLogs.push(log);
+                    }
+                });
+                
+                appState.attendanceList = uniqueLogs;
+                
+                // Dynamically update the Date filter dropdown based on actual loaded entries
+                populateDateFilterDropdown();
+                renderAttendanceTable();
+            }, (error) => {
+                console.warn("Firestore logs blocked:", error);
+                initializeLocalOfflineMode("Rules Restricted: Local Sandbox Active");
+            });
+        }
+
+        // Load cached LocalStorage variables
+        function loadLocalCache() {
+            const savedClasses = localStorage.getItem('offline_classes');
+            const savedAttendance = localStorage.getItem('offline_attendance');
+
+            if (savedClasses) appState.activeClasses = JSON.parse(savedClasses);
+            if (savedAttendance) {
+                const logs = JSON.parse(savedAttendance);
+                const uniqueLogs = [];
+                const seen = new Set();
+                logs.forEach(log => {
+                    const key = `${log.roll.trim()}-${log.subject.trim()}-${log.date.trim()}`;
+                    if (!seen.has(key)) {
+                        seen.add(key);
+                        uniqueLogs.push(log);
+                    }
+                });
+                appState.attendanceList = uniqueLogs;
+            }
+            populateDateFilterDropdown();
+        }
+
+        // Save cached LocalStorage variables
+        function saveLocalCache() {
+            localStorage.setItem('offline_classes', JSON.stringify(appState.activeClasses));
+            localStorage.setItem('offline_attendance', JSON.stringify(appState.attendanceList));
+        }
+
+        // Populate Date Filter Dropdown dynamically with unique available dates
+        function populateDateFilterDropdown() {
+            const dateFilterSelect = document.getElementById('adminDateFilter');
+            if (!dateFilterSelect) return;
+
+            // Cache current selected value so we don't reset it
+            const currentSelectedValue = dateFilterSelect.value;
+
+            // Get unique dates
+            const dates = [...new Set(appState.attendanceList.map(item => item.date))];
+            
+            // Sort dates chronologically or reverse
+            dates.sort((a, b) => {
+                const partsA = a.split('/');
+                const partsB = b.split('/');
+                const dateA = new Date(partsA[2], partsA[1] - 1, partsA[0]);
+                const dateB = new Date(partsB[2], partsB[1] - 1, partsB[0]);
+                return dateB - dateA; // Show latest dates first
+            });
+
+            // Rebuild options
+            dateFilterSelect.innerHTML = '<option value="ALL">All Dates</option>';
+            dates.forEach(date => {
+                const option = document.createElement('option');
+                option.value = date;
+                option.text = date;
+                dateFilterSelect.appendChild(option);
+            });
+
+            // Restore selection if it still exists
+            if (dates.includes(currentSelectedValue)) {
+                dateFilterSelect.value = currentSelectedValue;
+            } else {
+                dateFilterSelect.value = "ALL";
+            }
+        }
+
+        // Navigation Manager
+        function navigateTo(view) {
+            appState.currentView = view;
+            localStorage.setItem('attendance_current_view', view);
+            updateUI();
+        }
+
+        // UI Custom Dialog triggers
+        function triggerModal(title, msg, type = 'info', receiptDetails = null) {
+            const modal = document.getElementById('customModal');
+            const icon = document.getElementById('modalIcon');
+            const titleEl = document.getElementById('modalTitle');
+            const bodyEl = document.getElementById('modalBody');
+            const detailsBox = document.getElementById('modalDetailsContainer');
+
+            titleEl.innerText = title;
+            bodyEl.innerText = msg;
+
+            // Reset dynamic metadata details box
+            detailsBox.innerHTML = '';
+            detailsBox.classList.add('hidden');
+
+            if (receiptDetails) {
+                detailsBox.classList.remove('hidden');
+                for (const [key, value] of Object.entries(receiptDetails)) {
+                    const row = document.createElement('div');
+                    row.className = "flex justify-between items-center text-xs border-b border-gray-800/40 pb-1.5 last:border-0 last:pb-0";
+                    row.innerHTML = `
+                        <span class="text-gray-400 font-semibold uppercase tracking-wider text-[10px]">${key}:</span>
+                        <span class="text-gray-200 font-medium">${value}</span>
+                    `;
+                    detailsBox.appendChild(row);
+                }
+            }
+
+            if (type === 'success') {
+                icon.className = 'w-16 h-16 rounded-full mx-auto flex items-center justify-center text-3xl mb-4 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-lg shadow-emerald-500/10';
+                icon.innerHTML = '<i class="fa-solid fa-circle-check animate-bounce"></i>';
+            } else if (type === 'error') {
+                icon.className = 'w-16 h-16 rounded-full mx-auto flex items-center justify-center text-3xl mb-4 bg-rose-500/10 text-rose-400 border border-rose-500/20 shadow-lg shadow-rose-500/10';
+                icon.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i>';
+            } else {
+                icon.className = 'w-16 h-16 rounded-full mx-auto flex items-center justify-center text-3xl mb-4 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 shadow-lg shadow-indigo-500/10';
+                icon.innerHTML = '<i class="fa-solid fa-circle-info"></i>';
+            }
+            modal.classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('customModal').classList.add('hidden');
+        }
+
+        // Show/Hide Admin Password Toggle
+        function togglePasswordVisibility() {
+            const passInput = document.getElementById('adminPassword');
+            const icon = document.getElementById('togglePasswordIcon');
+            if (passInput.type === 'password') {
+                passInput.type = 'text';
+                icon.classList.remove('fa-eye');
+                icon.classList.add('fa-eye-slash');
+            } else {
+                passInput.type = 'password';
+                icon.classList.remove('fa-eye-slash');
+                icon.classList.add('fa-eye');
+            }
+        }
+
+        // Admin Security Check (Updated to Nahidul@123)
+        function loginAdmin() {
+            const passInput = document.getElementById('adminPassword');
+            if (passInput.value === 'Nahidul@123') {
+                appState.isAdminLoggedIn = true;
+                localStorage.setItem('attendance_admin_logged_in', 'true');
+                passInput.value = '';
+                updateUI();
+                triggerModal('Login Successful!', 'Welcome back Administrator.', 'success');
+            } else {
+                triggerModal('Access Denied', 'Incorrect password! Please try again.', 'error');
+            }
+        }
+
+        function logoutAdmin() {
+            appState.isAdminLoggedIn = false;
+            localStorage.setItem('attendance_admin_logged_in', 'false');
+            updateUI();
+        }
+
+        // Admin Launch Class 
+        async function startClass() {
+            const subject = document.getElementById('adminSubject').value;
+            const dateVal = document.getElementById('adminDate').value;
+
+            if (!dateVal) {
+                triggerModal('Launch Error', 'Please select a valid date for this session!', 'error');
+                return;
+            }
+
+            const parts = dateVal.split('-');
+            const formattedDate = `${parts[2]}/${parts[1]}/${parts[0]}`;
+
+            // Unique session ID generator
+            const docId = `${subject.replace(/\s+/g, '')}-${parts[0]}${parts[1]}${parts[2]}`;
+
+            // Check if this class is already started locally
+            const exists = appState.activeClasses.some(c => c.subject === subject && c.date === formattedDate);
+            if (exists) {
+                triggerModal('Session Active', `"${subject}" is already actively running for ${formattedDate}.`, 'info');
+                return;
+            }
+
+            const classData = {
+                subject: subject,
+                date: formattedDate,
+                timestamp: Date.now()
+            };
+
+            if (isFirebaseConnected && appState.user) {
+                try {
+                    await classesColRef.doc(docId).set(classData);
+                    triggerModal('Class Launched!', `Successfully launched live roster for "${subject}".`, 'success');
+                } catch (err) {
+                    console.error("Firestore set crash, saving locally:", err);
+                    saveClassLocally(docId, classData);
+                }
+            } else {
+                saveClassLocally(docId, classData);
+            }
+        }
+
+        // Save active class offline helper
+        function saveClassLocally(docId, data) {
+            appState.activeClasses.push({ id: docId, ...data });
+            saveLocalCache();
+            syncActiveClassesUI();
+            triggerModal('Local Mode Launcher', `Started class offline: "${data.subject}".`, 'success');
+        }
+
+        // Admin Stop Class 
+        async function endClass(docId) {
+            if (isFirebaseConnected && appState.user) {
+                try {
+                    await classesColRef.doc(docId).delete();
+                    triggerModal('Class Session Ended', 'Students can no longer submit attendance to this course.', 'info');
+                } catch (err) {
+                    console.error("Firestore delete error:", err);
+                    removeClassLocally(docId);
+                }
+            } else {
+                removeClassLocally(docId);
+            }
+        }
+
+        // Remove active class offline helper
+        function removeClassLocally(docId) {
+            appState.activeClasses = appState.activeClasses.filter(c => c.id !== docId);
+            saveLocalCache();
+            syncActiveClassesUI();
+            triggerModal('Stopped Class', 'Selected course roster is now deactivated offline.', 'info');
+        }
+
+        // Multi-Class dropdowns updater
+        function syncActiveClassesUI() {
+            const studentSelect = document.getElementById('studentClassSelect');
+            const studentOverlay = document.getElementById('studentFormOverlay');
+            const studentForm = document.getElementById('attendanceForm');
+
+            studentSelect.innerHTML = '';
+
+            if (appState.activeClasses.length === 0) {
+                studentOverlay.classList.remove('hidden');
+                studentForm.classList.add('hidden');
+                
+                const option = document.createElement('option');
+                option.text = 'No Class Running';
+                studentSelect.appendChild(option);
+            } else {
+                studentOverlay.classList.add('hidden');
+                studentForm.classList.remove('hidden');
+
+                appState.activeClasses.forEach(c => {
+                    const option = document.createElement('option');
+                    option.value = c.id;
+                    option.text = `${c.subject} (${c.date})`;
+                    studentSelect.appendChild(option);
+                });
+                onStudentSelectClass();
+            }
+
+            // Admin active tracking listing
+            const adminList = document.getElementById('adminActiveClassesList');
+            if (adminList) {
+                adminList.innerHTML = '';
+                if (appState.activeClasses.length === 0) {
+                    adminList.innerHTML = `<p class="text-xs text-gray-500 text-center py-4">No active classes running</p>`;
+                } else {
+                    appState.activeClasses.forEach(c => {
+                        const div = document.createElement('div');
+                        div.className = "flex items-center justify-between p-3 bg-gray-900 border border-gray-800 rounded-xl";
+                        div.innerHTML = `
+                            <div class="pr-2">
+                                <h4 class="text-xs font-bold text-gray-200">${c.subject}</h4>
+                                <p class="text-[10px] text-teal-400 mt-0.5">${c.date}</p>
+                            </div>
+                            <button onclick="endClass('${c.id}')" class="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 font-semibold text-[10px] px-2.5 py-1 rounded-lg border border-rose-500/20 transition-all">
+                                Stop Class
+                            </button>
+                        `;
+                        adminList.appendChild(div);
+                    });
+                }
+            }
+        }
+
+        // Student class dropdown triggers
+        function onStudentSelectClass() {
+            const select = document.getElementById('studentClassSelect');
+            const activeClassId = select.value;
+            const currentSelected = appState.activeClasses.find(c => c.id === activeClassId);
+
+            if (currentSelected) {
+                document.getElementById('studentDate').value = currentSelected.date;
+            }
+        }
+
+        // Handle Attendance Submission with safe, instant submission feedback and reliable Firestore sync
+        document.getElementById('attendanceForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            if (appState.activeClasses.length === 0) {
+                triggerModal('Submission Closed', 'No live classes are currently accepting submissions.', 'error');
+                return;
+            }
+
+            const select = document.getElementById('studentClassSelect');
+            const activeClassId = select.value;
+            const targetClass = appState.activeClasses.find(c => c.id === activeClassId);
+
+            if (!targetClass) {
+                triggerModal('Error', 'Selected class session was terminated by host.', 'error');
+                return;
+            }
+
+            const name = document.getElementById('studentName').value.trim();
+            const roll = document.getElementById('studentRoll').value.trim();
+
+            if (!name || !roll) {
+                triggerModal('Missing Info', 'Please enter your complete name and roll number.', 'error');
+                return;
+            }
+
+            // Check duplicates in sync register (popup trigger)
+            const isDuplicate = appState.attendanceList.some(r => r.roll.trim() === roll && r.subject.trim() === targetClass.subject.trim() && r.date.trim() === targetClass.date.trim());
+            if (isDuplicate) {
+                triggerModal('Already Submitted!', `You have already recorded your attendance for ${targetClass.subject} session today.`, 'error');
+                return;
+            }
+
+            const submitBtn = document.getElementById('btnSubmitAttendance');
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fa-solid fa-circle-notch animate-spin"></i> Submitting...';
+
+            const timestamp = Date.now();
+            const timeString = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+            const logData = {
+                roll: roll,
+                name: name,
+                subject: targetClass.subject,
+                date: targetClass.date,
+                status: 'Present',
+                time: timeString,
+                timestamp: timestamp
+            };
+
+            if (isFirebaseConnected && appState.user) {
+                // We add the document to Firestore, which queues it instantly.
+                // We don't await server confirmation to prevent UI freezing or double submission timeouts.
+                attendanceColRef.add(logData).then(() => {
+                    console.log("Attendance successfully synced to cloud.");
+                }).catch(err => {
+                    console.error("Firestore cloud write failed, queued offline:", err);
+                });
+                
+                // Show success feedback instantly!
+                postSubmissionSuccess(logData);
+            } else {
+                saveAttendanceLocally(logData);
+            }
+        });
+
+        // Submit attendance offline helper
+        function saveAttendanceLocally(data) {
+            appState.attendanceList.unshift({ id: `local-${Date.now()}`, ...data });
+            saveLocalCache();
+            populateDateFilterDropdown();
+            renderAttendanceTable();
+            postSubmissionSuccess(data);
+        }
+
+        // Post submission clear, button reset, and custom receipt popup modal triggers
+        function postSubmissionSuccess(logData) {
+            const submitBtn = document.getElementById('btnSubmitAttendance');
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="fa-solid fa-circle-check"></i> Submit Attendance';
+
+            document.getElementById('studentName').value = '';
+            document.getElementById('studentRoll').value = '';
+
+            // Clean premium interactive popup metadata receipt triggered
+            triggerModal(
+                'Attendance Submitted Successfully!',
+                'Your presence has been saved in the cloud database register.',
+                'success',
+                {
+                    'Student Name': logData.name,
+                    'Roll Number': logData.roll,
+                    'Course Title': logData.subject,
+                    'Date & Time': `${logData.date} @ ${logData.time}`
+                }
+            );
+
+            document.getElementById('attendanceForm').classList.add('hidden');
+            document.getElementById('receiptBox').classList.remove('hidden');
+
+            setTimeout(() => {
+                if (appState.activeClasses.length > 0) {
+                    document.getElementById('receiptBox').classList.add('hidden');
+                    document.getElementById('attendanceForm').classList.remove('hidden');
+                }
+            }, 5000);
+        }
+
+        // Dynamic Table Renderers
+        function renderAttendanceTable() {
+            const tbody = document.getElementById('attendanceTableBody');
+            const emptyState = document.getElementById('emptyTableState');
+            const counter = document.getElementById('studentCount');
+
+            if (!tbody) return;
+
+            tbody.innerHTML = '';
+            
+            // Client side filter registers (RULE 2 compliance)
+            const keyword = document.getElementById('attendanceSearch').value.toLowerCase();
+            const filterSubject = document.getElementById('adminSubjectFilter').value;
+            const filterDate = document.getElementById('adminDateFilter').value;
+
+            const filteredLogs = appState.attendanceList.filter(log => {
+                const matchesKeyword = log.name.toLowerCase().includes(keyword) || log.roll.toLowerCase().includes(keyword);
+                const matchesSubject = filterSubject === 'ALL' || log.subject === filterSubject;
+                const matchesDate = filterDate === 'ALL' || log.date === filterDate;
+                return matchesKeyword && matchesSubject && matchesDate;
+            });
+
+            counter.innerText = filteredLogs.length;
+
+            if (filteredLogs.length === 0) {
+                emptyState.classList.remove('hidden');
+                return;
+            } else {
+                emptyState.classList.add('hidden');
+            }
+
+            filteredLogs.forEach(student => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-gray-800/40 transition-colors duration-150 border-b border-gray-800/60";
+                tr.innerHTML = `
+                    <td class="px-3 py-3.5 font-mono text-xs font-semibold text-teal-400">${student.roll}</td>
+                    <td class="px-3 py-3.5 font-medium text-gray-200">${student.name}</td>
+                    <td class="px-3 py-3.5 text-xs text-gray-300 font-semibold">${student.subject}</td>
+                    <td class="px-3 py-3.5 text-xs text-gray-400">${student.date}</td>
+                    <td class="px-3 py-3.5 text-xs text-gray-400 font-mono">${student.time}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // Filters dynamic database updates on input trigger
+        function filterTable() {
+            renderAttendanceTable();
+        }
+
+        // Open custom confirmation dialog box
+        function confirmClearAll() {
+            document.getElementById('confirmModal').classList.remove('hidden');
+        }
+
+        function closeConfirmModal() {
+            document.getElementById('confirmModal').classList.add('hidden');
+        }
+
+        // Execute Wipe Database history globally
+        async function executeClearAll() {
+            closeConfirmModal();
+            if (isFirebaseConnected && appState.user) {
+                try {
+                    const querySnapshot = await attendanceColRef.get();
+                    const deletePromises = [];
+                    querySnapshot.forEach((document) => {
+                        deletePromises.push(attendanceColRef.doc(document.id).delete());
+                    });
+                    await Promise.all(deletePromises);
+                    triggerModal('Records Purged', 'All attendance registers successfully deleted from the cloud.', 'info');
+                } catch (err) {
+                    console.error("Cloud purge failed, clearing locally:", err);
+                    clearRecordsLocally();
+                }
+            } else {
+                clearRecordsLocally();
+            }
+        }
+
+        function clearRecordsLocally() {
+            appState.attendanceList = [];
+            saveLocalCache();
+            populateDateFilterDropdown();
+            renderAttendanceTable();
+            triggerModal('Records Cleared', 'Local offline database register was reset successfully.', 'info');
+        }
+
+        // Fixed Multi-Class Horizontal Excel CSV Export Handler (Respects active Date & Subject filter combinations!)
+        function exportToCSV() {
+            if (appState.attendanceList.length === 0) {
+                triggerModal('Export Error', 'No attendance submissions found to export.', 'error');
+                return;
+            }
+
+            // Filter exported lines based on currently active filters on the table (Respects both Date & Subject)
+            const filterSubject = document.getElementById('adminSubjectFilter').value;
+            const filterDate = document.getElementById('adminDateFilter').value;
+
+            const listToExport = appState.attendanceList.filter(log => {
+                const matchesSubject = filterSubject === 'ALL' || log.subject === filterSubject;
+                const matchesDate = filterDate === 'ALL' || log.date === filterDate;
+                return matchesSubject && matchesDate;
+            });
+
+            if (listToExport.length === 0) {
+                triggerModal('Export Error', 'No logs matching the current selected filter to export.', 'error');
+                return;
+            }
+
+            // CSV Header Setup
+            let csvLines = [];
+            csvLines.push("Roll,Name,Subject,Date,Status,Time");
+
+            listToExport.forEach(r => {
+                let safeName = `"${r.name.replace(/"/g, '""')}"`;
+                let safeSubject = `"${r.subject.replace(/"/g, '""')}"`;
+                csvLines.push(`${r.roll},${safeName},${safeSubject},${r.date},${r.status},${r.time}`);
+            });
+
+            const csvString = csvLines.join("\n");
+            const blob = new Blob(["\uFEFF" + csvString], { type: "text/csv;charset=utf-8;" });
+            
+            // Build a dynamic and descriptive clean filename
+            const subjectLabel = filterSubject === 'ALL' ? 'AllSubjects' : filterSubject.replace(/\s+/g, '_');
+            const dateLabel = filterDate === 'ALL' ? 'AllDates' : filterDate.replace(/\//g, '-');
+            const exportFileName = `${subjectLabel}_${dateLabel}_Attendance.csv`;
+
+            const link = document.createElement("a");
+            if (link.download !== undefined) {
+                const url = URL.createObjectURL(blob);
+                link.setAttribute("href", url);
+                link.setAttribute("download", exportFileName);
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+        }
+
+        // Sync view layout managers on trigger updates
+        function updateUI() {
+            const selectionScreen = document.getElementById('roleSelectionScreen');
+            const studentWrapper = document.getElementById('studentViewWrapper');
+            const adminWrapper = document.getElementById('adminViewWrapper');
+
+            const adminAuthCard = document.getElementById('adminAuthCard');
+            const adminDashboard = document.getElementById('adminDashboard');
+
+            if (appState.currentView === 'landing') {
+                selectionScreen.className = "max-w-4xl mx-auto px-6 py-12 w-full flex flex-col justify-center items-center transition-all duration-300";
+                selectionScreen.classList.remove('hidden');
+                studentWrapper.classList.add('hidden');
+                adminWrapper.classList.add('hidden');
+            } else if (appState.currentView === 'student') {
+                selectionScreen.classList.add('hidden');
+                studentWrapper.classList.remove('hidden');
+                adminWrapper.classList.add('hidden');
+                syncActiveClassesUI();
+            } else if (appState.currentView === 'admin') {
+                selectionScreen.classList.add('hidden');
+                studentWrapper.classList.add('hidden');
+                adminWrapper.classList.remove('hidden');
+
+                if (appState.isAdminLoggedIn) {
+                    adminAuthCard.classList.add('hidden');
+                    adminDashboard.classList.remove('hidden');
+                    syncActiveClassesUI();
+                } else {
+                    adminAuthCard.classList.remove('hidden');
+                    adminDashboard.classList.add('hidden');
+                }
+            }
+        }
+    </script>
+</body>
+</html>
