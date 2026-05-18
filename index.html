@@ -9,10 +9,10 @@
     <!-- FontAwesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
-    <!-- Firebase Compat SDKs (Works perfectly on local file:/// and Netlify without CORS issues) -->
+    <!-- Firebase Compat SDKs (Works perfectly on local file:/// and Netlify with Realtime Database) -->
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
 
     <style>
         /* Custom scrollbar to keep layout premium */
@@ -422,14 +422,14 @@
             };
         }
 
-        // Base states initialization
+        // Base states initialization with Realtime Database (RTDB) Support
         let db = null;
         let auth = null;
         let isFirebaseConnected = false;
 
-        // Path refs setup (RULE 1)
-        let classesColRef = null;
-        let attendanceColRef = null;
+        // Path refs setup for Realtime Database
+        let classesRef = null;
+        let attendanceRef = null;
 
         // Core App state mapping
         let appState = {
@@ -481,12 +481,12 @@
                 try {
                     const firebaseApp = firebase.initializeApp(firebaseConfig);
                     auth = firebase.auth();
-                    db = firebase.firestore();
+                    db = firebase.database(); // Initializing Realtime Database
                     isFirebaseConnected = true;
 
-                    // Setup cloud locations (RULE 1)
-                    classesColRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('classes');
-                    attendanceColRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('attendance');
+                    // Setup database references (RTDB Paths)
+                    classesRef = db.ref('classes');
+                    attendanceRef = db.ref('attendance');
 
                     // Track Authentication statuses (RULE 3)
                     auth.onAuthStateChanged((user) => {
@@ -545,28 +545,28 @@
             );
         }
 
-        // Live Cloud listener hangups (RULE 2 compliance: Client-side sorting & de-duplication)
+        // Live Cloud listener (Client-side sorting, filter & de-duplication)
         function setupFirebaseListeners() {
             if (!isFirebaseConnected || !appState.user) return;
 
-            // 1. Live classes sync
-            classesColRef.onSnapshot((snapshot) => {
+            // 1. Live classes sync (Realtime Database on value event)
+            classesRef.on('value', (snapshot) => {
                 const classes = [];
-                snapshot.forEach(doc => {
-                    classes.push({ id: doc.id, ...doc.data() });
+                snapshot.forEach(childSnapshot => {
+                    classes.push({ id: childSnapshot.key, ...childSnapshot.val() });
                 });
                 appState.activeClasses = classes;
                 syncActiveClassesUI();
             }, (error) => {
-                console.warn("Firestore classes blocked:", error);
+                console.warn("Realtime Database classes blocked:", error);
                 initializeLocalOfflineMode("Rules Restricted: Local Sandbox Active");
             });
 
-            // 2. Live attendance logs with de-duplication
-            attendanceColRef.onSnapshot((snapshot) => {
+            // 2. Live attendance logs with de-duplication (Realtime Database on value event)
+            attendanceRef.on('value', (snapshot) => {
                 const logs = [];
-                snapshot.forEach(doc => {
-                    logs.push({ id: doc.id, ...doc.data() });
+                snapshot.forEach(childSnapshot => {
+                    logs.push({ id: childSnapshot.key, ...childSnapshot.val() });
                 });
                 
                 logs.sort((a, b) => b.timestamp - a.timestamp);
@@ -590,7 +590,7 @@
                 // Refresh duplicate check for active selection
                 onStudentSelectClass();
             }, (error) => {
-                console.warn("Firestore logs blocked:", error);
+                console.warn("Realtime Database logs blocked:", error);
                 initializeLocalOfflineMode("Rules Restricted: Local Sandbox Active");
             });
         }
@@ -767,10 +767,11 @@
 
             if (isFirebaseConnected && appState.user) {
                 try {
-                    await classesColRef.doc(docId).set(classData);
+                    // RTDB write
+                    await classesRef.child(docId).set(classData);
                     triggerModal('Class Launched!', `Successfully launched live roster for "${subject}".`, 'success');
                 } catch (err) {
-                    console.error("Firestore set crash, saving locally:", err);
+                    console.error("Realtime DB set crash, saving locally:", err);
                     saveClassLocally(docId, classData);
                 }
             } else {
@@ -789,10 +790,11 @@
         async function endClass(docId) {
             if (isFirebaseConnected && appState.user) {
                 try {
-                    await classesColRef.doc(docId).delete();
+                    // RTDB remove
+                    await classesRef.child(docId).remove();
                     triggerModal('Class Session Ended', 'Students can no longer submit attendance to this course.', 'info');
                 } catch (err) {
-                    console.error("Firestore delete error:", err);
+                    console.error("Realtime DB delete error:", err);
                     removeClassLocally(docId);
                 }
             } else {
@@ -945,7 +947,8 @@
             };
 
             if (isFirebaseConnected && appState.user) {
-                attendanceColRef.add(logData).then(() => {
+                // RTDB push (Realtime Database push is equivalent to Firestore add)
+                attendanceRef.push(logData).then(() => {
                     console.log("Synced safely to Firebase Cloud.");
                 }).catch(err => {
                     console.error("Cloud push failed, cached offline:", err);
@@ -1057,12 +1060,8 @@
             closeConfirmModal();
             if (isFirebaseConnected && appState.user) {
                 try {
-                    const querySnapshot = await attendanceColRef.get();
-                    const deletePromises = [];
-                    querySnapshot.forEach((document) => {
-                        deletePromises.push(attendanceColRef.doc(document.id).delete());
-                    });
-                    await Promise.all(deletePromises);
+                    // RTDB clear
+                    await attendanceRef.remove();
                     triggerModal('Records Purged', 'All attendance registers successfully deleted from the cloud.', 'info');
                 } catch (err) {
                     console.error("Cloud purge failed, clearing locally:", err);
