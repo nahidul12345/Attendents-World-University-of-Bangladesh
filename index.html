@@ -403,8 +403,8 @@
 
     <!-- Firebase SDK Setup & Core Application Logic -->
     <script>
-        // Firebase Config settings configuration
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'online-attendance-4db73';
+        // Fixed hardcoded appId for 100% consistent cross-device synchronization
+        const appId = 'online-attendance-4db73';
         
         let firebaseConfig;
         if (typeof __firebase_config !== 'undefined' && __firebase_config) {
