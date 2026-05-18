@@ -9,7 +9,7 @@
     <!-- FontAwesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
-    <!-- Firebase Compat SDKs (Works perfectly on local file:/// without module CORS errors) -->
+    <!-- Firebase Compat SDKs (Works perfectly on local file:/// and Netlify without CORS issues) -->
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
@@ -59,7 +59,7 @@
                     <h1 class="text-2xl font-bold tracking-wide bg-gradient-to-r from-emerald-400 via-teal-200 to-indigo-400 bg-clip-text text-transparent">
                         Attendance System
                     </h1>
-                    <p class="text-xs text-gray-400">Admin & Student Integrated Portal (Firebase Backend)</p>
+                    <p class="text-xs text-gray-400 font-medium">Admin & Student Integrated Portal (Firebase Backend)</p>
                 </div>
             </div>
             
@@ -137,6 +137,13 @@
                     <select id="studentClassSelect" onchange="onStudentSelectClass()" class="w-full bg-[#162032] border border-gray-800 rounded-xl px-4 py-3 text-sm text-gray-100 focus:border-teal-500 outline-none cursor-pointer">
                         <!-- Dynamic active classes loaded here -->
                     </select>
+                </div>
+
+                <!-- Device Proxy Block Notification Banner (Shown when submitted already from current device) -->
+                <div id="deviceDuplicateBox" class="bg-amber-500/10 border border-amber-500/20 rounded-xl p-5 text-center hidden mb-4">
+                    <i class="fa-solid fa-desktop text-4xl text-amber-400 mb-2"></i>
+                    <h4 class="text-base font-bold text-amber-400">Device Limit Reached</h4>
+                    <p class="text-xs text-gray-400 mt-1">Attendance has already been submitted for this class from this device. You cannot submit multiple entries.</p>
                 </div>
 
                 <!-- Inactive Banner if no active classes -->
@@ -396,7 +403,7 @@
 
     <!-- Firebase SDK Setup & Core Application Logic -->
     <script>
-        // Firebase Config credentials fallback mapping
+        // Firebase Config settings configuration
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'online-attendance-4db73';
         
         let firebaseConfig;
@@ -415,25 +422,25 @@
             };
         }
 
-        // Initialize connection status trackers
+        // Base states initialization
         let db = null;
         let auth = null;
         let isFirebaseConnected = false;
 
-        // Strict Path Definitions for Collections (RULE 1)
+        // Path refs setup (RULE 1)
         let classesColRef = null;
         let attendanceColRef = null;
 
-        // Core App State Management
+        // Core App state mapping
         let appState = {
             user: null,
             isAdminLoggedIn: false,
             currentView: 'landing',
-            activeClasses: [],     // Holds array of {id, subject, date, timestamp}
-            attendanceList: []    // Holds array of {id, roll, name, subject, date, status, time, timestamp}
+            activeClasses: [],     
+            attendanceList: []    
         };
 
-        // UI Helpers for Dynamic Status Box
+        // Status view bar configuration
         function setStatusIndicator(mode, msg) {
             const banner = document.getElementById('liveStatusBanner');
             const ping = document.getElementById('liveStatusPing');
@@ -458,33 +465,30 @@
             }
         }
 
-        // Initialize Secure Session
+        // On Load initializers
         window.addEventListener('load', () => {
-            // Preset date field
             const today = new Date().toISOString().split('T')[0];
             document.getElementById('adminDate').value = today;
 
-            // Load last view choices from Local Cache to improve UX
             const localView = localStorage.getItem('attendance_current_view');
             const localAdminLogin = localStorage.getItem('attendance_admin_logged_in');
 
             if (localView) appState.currentView = localView;
             if (localAdminLogin === 'true') appState.isAdminLoggedIn = true;
 
-            // Try loading Firebase library
+            // Load Firebase compat services
             if (typeof firebase !== 'undefined') {
                 try {
-                    // Initialize Firebase Compat setup
                     const firebaseApp = firebase.initializeApp(firebaseConfig);
                     auth = firebase.auth();
                     db = firebase.firestore();
                     isFirebaseConnected = true;
 
-                    // Set collection references securely (RULE 1)
+                    // Setup cloud locations (RULE 1)
                     classesColRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('classes');
                     attendanceColRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('attendance');
 
-                    // Authenticate session (RULE 3)
+                    // Track Authentication statuses (RULE 3)
                     auth.onAuthStateChanged((user) => {
                         if (user) {
                             appState.user = user;
@@ -496,7 +500,7 @@
                     });
 
                 } catch (err) {
-                    console.error("Firebase config boot crash:", err);
+                    console.error("Firebase startup crashed:", err);
                     initializeLocalOfflineMode("Cloud Blocked: Local Sandbox Active");
                 }
             } else {
@@ -504,12 +508,11 @@
             }
         });
 
-        // Offline Fallback Setup
+        // Offline mode trigger configurations
         function initializeLocalOfflineMode(reason) {
             isFirebaseConnected = false;
             setStatusIndicator('local', reason);
             
-            // Load state data locally from browser LocalStorage
             loadLocalCache();
             updateUI();
             renderAttendanceTable();
@@ -530,12 +533,11 @@
             }
         }
 
-        // Custom function to handle connection errors and guide the user
+        // Firebase error display handler
         function handleAuthError(error) {
             console.error("Firebase Authentication failed:", error);
             initializeLocalOfflineMode("Permission Denied: Local Mode");
 
-            // Show a helpful pop-up modal with configuration instructions
             triggerModal(
                 "Action Required",
                 "Firebase requires you to enable 'Anonymous Authentication'.\n\nTo fix this:\n1. Go to Firebase Console\n2. Navigate to Authentication -> Sign-in method\n3. Enable 'Anonymous' and save.\n\nUntil then, the app will continue to run safely in Offline Local Storage Mode.",
@@ -543,11 +545,11 @@
             );
         }
 
-        // Set up Real-time database synchronizers
+        // Live Cloud listener hangups (RULE 2 compliance: Client-side sorting & de-duplication)
         function setupFirebaseListeners() {
             if (!isFirebaseConnected || !appState.user) return;
 
-            // 1. Dynamic active classes listener
+            // 1. Live classes sync
             classesColRef.onSnapshot((snapshot) => {
                 const classes = [];
                 snapshot.forEach(doc => {
@@ -560,16 +562,16 @@
                 initializeLocalOfflineMode("Rules Restricted: Local Sandbox Active");
             });
 
-            // 2. Real-time attendances listener (RULE 2 compliance - local memory sorting, filter & de-duplication)
+            // 2. Live attendance logs with de-duplication
             attendanceColRef.onSnapshot((snapshot) => {
                 const logs = [];
                 snapshot.forEach(doc => {
                     logs.push({ id: doc.id, ...doc.data() });
                 });
-                // Sort logs by time desc locally
+                
                 logs.sort((a, b) => b.timestamp - a.timestamp);
 
-                // De-duplicate logs locally by roll + subject + date to guarantee no UI duplicates
+                // Local dynamic de-duplication wrapper
                 const uniqueLogs = [];
                 const seen = new Set();
                 logs.forEach(log => {
@@ -582,16 +584,18 @@
                 
                 appState.attendanceList = uniqueLogs;
                 
-                // Dynamically update the Date filter dropdown based on actual loaded entries
                 populateDateFilterDropdown();
                 renderAttendanceTable();
+                
+                // Refresh duplicate check for active selection
+                onStudentSelectClass();
             }, (error) => {
                 console.warn("Firestore logs blocked:", error);
                 initializeLocalOfflineMode("Rules Restricted: Local Sandbox Active");
             });
         }
 
-        // Load cached LocalStorage variables
+        // Local cache loaders
         function loadLocalCache() {
             const savedClasses = localStorage.getItem('offline_classes');
             const savedAttendance = localStorage.getItem('offline_attendance');
@@ -613,33 +617,27 @@
             populateDateFilterDropdown();
         }
 
-        // Save cached LocalStorage variables
         function saveLocalCache() {
             localStorage.setItem('offline_classes', JSON.stringify(appState.activeClasses));
             localStorage.setItem('offline_attendance', JSON.stringify(appState.attendanceList));
         }
 
-        // Populate Date Filter Dropdown dynamically with unique available dates
+        // Rebuild dynamic date filter select drop menu
         function populateDateFilterDropdown() {
             const dateFilterSelect = document.getElementById('adminDateFilter');
             if (!dateFilterSelect) return;
 
-            // Cache current selected value so we don't reset it
             const currentSelectedValue = dateFilterSelect.value;
-
-            // Get unique dates
             const dates = [...new Set(appState.attendanceList.map(item => item.date))];
             
-            // Sort dates chronologically or reverse
             dates.sort((a, b) => {
                 const partsA = a.split('/');
                 const partsB = b.split('/');
                 const dateA = new Date(partsA[2], partsA[1] - 1, partsA[0]);
                 const dateB = new Date(partsB[2], partsB[1] - 1, partsB[0]);
-                return dateB - dateA; // Show latest dates first
+                return dateB - dateA;
             });
 
-            // Rebuild options
             dateFilterSelect.innerHTML = '<option value="ALL">All Dates</option>';
             dates.forEach(date => {
                 const option = document.createElement('option');
@@ -648,7 +646,6 @@
                 dateFilterSelect.appendChild(option);
             });
 
-            // Restore selection if it still exists
             if (dates.includes(currentSelectedValue)) {
                 dateFilterSelect.value = currentSelectedValue;
             } else {
@@ -663,7 +660,7 @@
             updateUI();
         }
 
-        // UI Custom Dialog triggers
+        // Standard custom popup modal builder
         function triggerModal(title, msg, type = 'info', receiptDetails = null) {
             const modal = document.getElementById('customModal');
             const icon = document.getElementById('modalIcon');
@@ -674,7 +671,6 @@
             titleEl.innerText = title;
             bodyEl.innerText = msg;
 
-            // Reset dynamic metadata details box
             detailsBox.innerHTML = '';
             detailsBox.classList.add('hidden');
 
@@ -708,7 +704,7 @@
             document.getElementById('customModal').classList.add('hidden');
         }
 
-        // Show/Hide Admin Password Toggle
+        // Show/Hide password toggle logic
         function togglePasswordVisibility() {
             const passInput = document.getElementById('adminPassword');
             const icon = document.getElementById('togglePasswordIcon');
@@ -723,7 +719,7 @@
             }
         }
 
-        // Admin Security Check (Updated to Nahidul@123)
+        // Login check against: Nahidul@123
         function loginAdmin() {
             const passInput = document.getElementById('adminPassword');
             if (passInput.value === 'Nahidul@123') {
@@ -743,7 +739,7 @@
             updateUI();
         }
 
-        // Admin Launch Class 
+        // Start live session
         async function startClass() {
             const subject = document.getElementById('adminSubject').value;
             const dateVal = document.getElementById('adminDate').value;
@@ -755,11 +751,8 @@
 
             const parts = dateVal.split('-');
             const formattedDate = `${parts[2]}/${parts[1]}/${parts[0]}`;
-
-            // Unique session ID generator
             const docId = `${subject.replace(/\s+/g, '')}-${parts[0]}${parts[1]}${parts[2]}`;
 
-            // Check if this class is already started locally
             const exists = appState.activeClasses.some(c => c.subject === subject && c.date === formattedDate);
             if (exists) {
                 triggerModal('Session Active', `"${subject}" is already actively running for ${formattedDate}.`, 'info');
@@ -785,7 +778,6 @@
             }
         }
 
-        // Save active class offline helper
         function saveClassLocally(docId, data) {
             appState.activeClasses.push({ id: docId, ...data });
             saveLocalCache();
@@ -793,7 +785,7 @@
             triggerModal('Local Mode Launcher', `Started class offline: "${data.subject}".`, 'success');
         }
 
-        // Admin Stop Class 
+        // Stop live class
         async function endClass(docId) {
             if (isFirebaseConnected && appState.user) {
                 try {
@@ -808,7 +800,6 @@
             }
         }
 
-        // Remove active class offline helper
         function removeClassLocally(docId) {
             appState.activeClasses = appState.activeClasses.filter(c => c.id !== docId);
             saveLocalCache();
@@ -816,17 +807,19 @@
             triggerModal('Stopped Class', 'Selected course roster is now deactivated offline.', 'info');
         }
 
-        // Multi-Class dropdowns updater
+        // Active class UI layouts sync
         function syncActiveClassesUI() {
             const studentSelect = document.getElementById('studentClassSelect');
             const studentOverlay = document.getElementById('studentFormOverlay');
             const studentForm = document.getElementById('attendanceForm');
+            const deviceBox = document.getElementById('deviceDuplicateBox');
 
             studentSelect.innerHTML = '';
 
             if (appState.activeClasses.length === 0) {
                 studentOverlay.classList.remove('hidden');
                 studentForm.classList.add('hidden');
+                deviceBox.classList.add('hidden');
                 
                 const option = document.createElement('option');
                 option.text = 'No Class Running';
@@ -844,7 +837,6 @@
                 onStudentSelectClass();
             }
 
-            // Admin active tracking listing
             const adminList = document.getElementById('adminActiveClassesList');
             if (adminList) {
                 adminList.innerHTML = '';
@@ -869,7 +861,7 @@
             }
         }
 
-        // Student class dropdown triggers
+        // On select active dropdown - Handles Device Duplicate Locks
         function onStudentSelectClass() {
             const select = document.getElementById('studentClassSelect');
             const activeClassId = select.value;
@@ -877,10 +869,25 @@
 
             if (currentSelected) {
                 document.getElementById('studentDate').value = currentSelected.date;
+                
+                // Device proxy validation step
+                const isDeviceSubmitted = localStorage.getItem('device_submitted_' + currentSelected.id) === 'true';
+                const form = document.getElementById('attendanceForm');
+                const deviceBox = document.getElementById('deviceDuplicateBox');
+                const overlay = document.getElementById('studentFormOverlay');
+
+                if (isDeviceSubmitted) {
+                    form.classList.add('hidden');
+                    overlay.classList.add('hidden');
+                    deviceBox.classList.remove('hidden');
+                } else {
+                    deviceBox.classList.add('hidden');
+                    form.classList.remove('hidden');
+                }
             }
         }
 
-        // Handle Attendance Submission with safe, instant submission feedback and reliable Firestore sync
+        // Submit form data
         document.getElementById('attendanceForm').addEventListener('submit', async (e) => {
             e.preventDefault();
 
@@ -906,10 +913,17 @@
                 return;
             }
 
-            // Check duplicates in sync register (popup trigger)
+            // Client duplicate check
             const isDuplicate = appState.attendanceList.some(r => r.roll.trim() === roll && r.subject.trim() === targetClass.subject.trim() && r.date.trim() === targetClass.date.trim());
             if (isDuplicate) {
                 triggerModal('Already Submitted!', `You have already recorded your attendance for ${targetClass.subject} session today.`, 'error');
+                return;
+            }
+
+            // Local device duplicate check bypass guard
+            const isDeviceSubmitted = localStorage.getItem('device_submitted_' + targetClass.id) === 'true';
+            if (isDeviceSubmitted) {
+                triggerModal('Device Limit Reached', 'Attendance has already been submitted for this class from this device.', 'error');
                 return;
             }
 
@@ -931,22 +945,17 @@
             };
 
             if (isFirebaseConnected && appState.user) {
-                // We add the document to Firestore, which queues it instantly.
-                // We don't await server confirmation to prevent UI freezing or double submission timeouts.
                 attendanceColRef.add(logData).then(() => {
-                    console.log("Attendance successfully synced to cloud.");
+                    console.log("Synced safely to Firebase Cloud.");
                 }).catch(err => {
-                    console.error("Firestore cloud write failed, queued offline:", err);
+                    console.error("Cloud push failed, cached offline:", err);
                 });
-                
-                // Show success feedback instantly!
                 postSubmissionSuccess(logData);
             } else {
                 saveAttendanceLocally(logData);
             }
         });
 
-        // Submit attendance offline helper
         function saveAttendanceLocally(data) {
             appState.attendanceList.unshift({ id: `local-${Date.now()}`, ...data });
             saveLocalCache();
@@ -955,16 +964,22 @@
             postSubmissionSuccess(data);
         }
 
-        // Post submission clear, button reset, and custom receipt popup modal triggers
+        // Successfully registered callbacks - Saves submit ID to device LocalStorage
         function postSubmissionSuccess(logData) {
             const submitBtn = document.getElementById('btnSubmitAttendance');
             submitBtn.disabled = false;
             submitBtn.innerHTML = '<i class="fa-solid fa-circle-check"></i> Submit Attendance';
 
+            // Save lockout key to prevent multiple proxy entries from this same device
+            const select = document.getElementById('studentClassSelect');
+            const activeClassId = select.value;
+            if (activeClassId) {
+                localStorage.setItem('device_submitted_' + activeClassId, 'true');
+            }
+
             document.getElementById('studentName').value = '';
             document.getElementById('studentRoll').value = '';
 
-            // Clean premium interactive popup metadata receipt triggered
             triggerModal(
                 'Attendance Submitted Successfully!',
                 'Your presence has been saved in the cloud database register.',
@@ -977,18 +992,11 @@
                 }
             );
 
-            document.getElementById('attendanceForm').classList.add('hidden');
-            document.getElementById('receiptBox').classList.remove('hidden');
-
-            setTimeout(() => {
-                if (appState.activeClasses.length > 0) {
-                    document.getElementById('receiptBox').classList.add('hidden');
-                    document.getElementById('attendanceForm').classList.remove('hidden');
-                }
-            }, 5000);
+            // Block access form immediately
+            onStudentSelectClass();
         }
 
-        // Dynamic Table Renderers
+        // Sync table views
         function renderAttendanceTable() {
             const tbody = document.getElementById('attendanceTableBody');
             const emptyState = document.getElementById('emptyTableState');
@@ -998,7 +1006,6 @@
 
             tbody.innerHTML = '';
             
-            // Client side filter registers (RULE 2 compliance)
             const keyword = document.getElementById('attendanceSearch').value.toLowerCase();
             const filterSubject = document.getElementById('adminSubjectFilter').value;
             const filterDate = document.getElementById('adminDateFilter').value;
@@ -1033,12 +1040,10 @@
             });
         }
 
-        // Filters dynamic database updates on input trigger
         function filterTable() {
             renderAttendanceTable();
         }
 
-        // Open custom confirmation dialog box
         function confirmClearAll() {
             document.getElementById('confirmModal').classList.remove('hidden');
         }
@@ -1047,7 +1052,7 @@
             document.getElementById('confirmModal').classList.add('hidden');
         }
 
-        // Execute Wipe Database history globally
+        // Wipe Database history
         async function executeClearAll() {
             closeConfirmModal();
             if (isFirebaseConnected && appState.user) {
@@ -1076,14 +1081,13 @@
             triggerModal('Records Cleared', 'Local offline database register was reset successfully.', 'info');
         }
 
-        // Fixed Multi-Class Horizontal Excel CSV Export Handler (Respects active Date & Subject filter combinations!)
+        // Multi-Class Horizontal Excel CSV Export Handler
         function exportToCSV() {
             if (appState.attendanceList.length === 0) {
                 triggerModal('Export Error', 'No attendance submissions found to export.', 'error');
                 return;
             }
 
-            // Filter exported lines based on currently active filters on the table (Respects both Date & Subject)
             const filterSubject = document.getElementById('adminSubjectFilter').value;
             const filterDate = document.getElementById('adminDateFilter').value;
 
@@ -1098,7 +1102,6 @@
                 return;
             }
 
-            // CSV Header Setup
             let csvLines = [];
             csvLines.push("Roll,Name,Subject,Date,Status,Time");
 
@@ -1111,7 +1114,6 @@
             const csvString = csvLines.join("\n");
             const blob = new Blob(["\uFEFF" + csvString], { type: "text/csv;charset=utf-8;" });
             
-            // Build a dynamic and descriptive clean filename
             const subjectLabel = filterSubject === 'ALL' ? 'AllSubjects' : filterSubject.replace(/\s+/g, '_');
             const dateLabel = filterDate === 'ALL' ? 'AllDates' : filterDate.replace(/\//g, '-');
             const exportFileName = `${subjectLabel}_${dateLabel}_Attendance.csv`;
@@ -1128,7 +1130,7 @@
             }
         }
 
-        // Sync view layout managers on trigger updates
+        // Sync view layout managers
         function updateUI() {
             const selectionScreen = document.getElementById('roleSelectionScreen');
             const studentWrapper = document.getElementById('studentViewWrapper');
