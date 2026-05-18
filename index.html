@@ -282,7 +282,7 @@
                         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                             <div>
                                 <h3 class="text-lg font-bold text-gray-200">Live Attendance List</h3>
-                                <p class="text-xs text-gray-400">Real-time attendance roster pulled from Firestore</p>
+                                <p class="text-xs text-gray-400">Real-time attendance roster pulled from Database</p>
                             </div>
                             <div class="flex gap-2">
                                 <button onclick="exportToCSV()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-xl text-xs transition-all flex items-center gap-1.5 shadow-md">
@@ -553,7 +553,10 @@
             classesRef.on('value', (snapshot) => {
                 const classes = [];
                 snapshot.forEach(childSnapshot => {
-                    classes.push({ id: childSnapshot.key, ...childSnapshot.val() });
+                    const val = childSnapshot.val();
+                    if (val && val.subject && val.date) {
+                        classes.push({ id: childSnapshot.key, ...val });
+                    }
                 });
                 appState.activeClasses = classes;
                 syncActiveClassesUI();
@@ -566,7 +569,11 @@
             attendanceRef.on('value', (snapshot) => {
                 const logs = [];
                 snapshot.forEach(childSnapshot => {
-                    logs.push({ id: childSnapshot.key, ...childSnapshot.val() });
+                    const val = childSnapshot.val();
+                    // Double check val has content to prevent crashing on malformed data
+                    if (val && val.roll && val.name && val.subject && val.date) {
+                        logs.push({ id: childSnapshot.key, ...val });
+                    }
                 });
                 
                 logs.sort((a, b) => b.timestamp - a.timestamp);
@@ -606,10 +613,12 @@
                 const uniqueLogs = [];
                 const seen = new Set();
                 logs.forEach(log => {
-                    const key = `${log.roll.trim()}-${log.subject.trim()}-${log.date.trim()}`;
-                    if (!seen.has(key)) {
-                        seen.add(key);
-                        uniqueLogs.push(log);
+                    if (log && log.roll && log.name && log.subject && log.date) {
+                        const key = `${log.roll.trim()}-${log.subject.trim()}-${log.date.trim()}`;
+                        if (!seen.has(key)) {
+                            seen.add(key);
+                            uniqueLogs.push(log);
+                        }
                     }
                 });
                 appState.attendanceList = uniqueLogs;
@@ -915,8 +924,14 @@
                 return;
             }
 
-            // Client duplicate check
-            const isDuplicate = appState.attendanceList.some(r => r.roll.trim() === roll && r.subject.trim() === targetClass.subject.trim() && r.date.trim() === targetClass.date.trim());
+            // Client duplicate check (Clean trim comparison)
+            const isDuplicate = appState.attendanceList.some(r => 
+                r.roll && r.subject && r.date &&
+                r.roll.toString().trim() === roll && 
+                r.subject.toString().trim() === targetClass.subject.trim() && 
+                r.date.toString().trim() === targetClass.date.trim()
+            );
+            
             if (isDuplicate) {
                 triggerModal('Already Submitted!', `You have already recorded your attendance for ${targetClass.subject} session today.`, 'error');
                 return;
@@ -999,7 +1014,7 @@
             onStudentSelectClass();
         }
 
-        // Sync table views
+        // Sync table views with rigorous type safety checks to prevent crashes on old/corrupt db values
         function renderAttendanceTable() {
             const tbody = document.getElementById('attendanceTableBody');
             const emptyState = document.getElementById('emptyTableState');
@@ -1014,9 +1029,16 @@
             const filterDate = document.getElementById('adminDateFilter').value;
 
             const filteredLogs = appState.attendanceList.filter(log => {
-                const matchesKeyword = log.name.toLowerCase().includes(keyword) || log.roll.toLowerCase().includes(keyword);
-                const matchesSubject = filterSubject === 'ALL' || log.subject === filterSubject;
-                const matchesDate = filterDate === 'ALL' || log.date === filterDate;
+                // Safe fallbacks to prevent "toLowerCase of undefined" JS runtime crashes
+                const logName = log.name ? log.name.toString().toLowerCase() : '';
+                const logRoll = log.roll ? log.roll.toString().toLowerCase() : '';
+                const logSubject = log.subject ? log.subject.toString() : '';
+                const logDate = log.date ? log.date.toString() : '';
+
+                const matchesKeyword = logName.includes(keyword) || logRoll.includes(keyword);
+                const matchesSubject = filterSubject === 'ALL' || logSubject === filterSubject;
+                const matchesDate = filterDate === 'ALL' || logDate === filterDate;
+                
                 return matchesKeyword && matchesSubject && matchesDate;
             });
 
@@ -1037,7 +1059,7 @@
                     <td class="px-3 py-3.5 font-medium text-gray-200">${student.name}</td>
                     <td class="px-3 py-3.5 text-xs text-gray-300 font-semibold">${student.subject}</td>
                     <td class="px-3 py-3.5 text-xs text-gray-400">${student.date}</td>
-                    <td class="px-3 py-3.5 text-xs text-gray-400 font-mono">${student.time}</td>
+                    <td class="px-3 py-3.5 text-xs text-gray-400 font-mono">${student.time || ''}</td>
                 `;
                 tbody.appendChild(tr);
             });
@@ -1091,8 +1113,10 @@
             const filterDate = document.getElementById('adminDateFilter').value;
 
             const listToExport = appState.attendanceList.filter(log => {
-                const matchesSubject = filterSubject === 'ALL' || log.subject === filterSubject;
-                const matchesDate = filterDate === 'ALL' || log.date === filterDate;
+                const logSubject = log.subject ? log.subject.toString() : '';
+                const logDate = log.date ? log.date.toString() : '';
+                const matchesSubject = filterSubject === 'ALL' || logSubject === filterSubject;
+                const matchesDate = filterDate === 'ALL' || logDate === filterDate;
                 return matchesSubject && matchesDate;
             });
 
@@ -1105,8 +1129,10 @@
             csvLines.push("Roll,Name,Subject,Date,Status,Time");
 
             listToExport.forEach(r => {
-                let safeName = `"${r.name.replace(/"/g, '""')}"`;
-                let safeSubject = `"${r.subject.replace(/"/g, '""')}"`;
+                const nameStr = r.name ? r.name.toString() : '';
+                const subStr = r.subject ? r.subject.toString() : '';
+                let safeName = `"${nameStr.replace(/"/g, '""')}"`;
+                let safeSubject = `"${subStr.replace(/"/g, '""')}"`;
                 csvLines.push(`${r.roll},${safeName},${safeSubject},${r.date},${r.status},${r.time}`);
             });
 
